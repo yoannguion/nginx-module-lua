@@ -667,8 +667,16 @@ ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc, void *data,
                     item->host.len = host->len;
 
                 } else {
-                    item->host.data = ngx_pstrdup(c->pool, bp->addr_text);
                     item->host.len = bp->addr_text->len;
+                    item->host.data = ngx_pstrdup(c->pool, bp->addr_text);
+                    if (item->host.data == NULL) {
+                        ngx_http_lua_balancer_close(c);
+
+                        ngx_queue_remove(&item->queue);
+                        ngx_queue_remove(&item->hnode);
+                        ngx_queue_insert_head(&item->lscf->balancer.free, &item->queue);
+                        return;
+                    }
                 }
 
             } else {
@@ -803,7 +811,7 @@ int
 ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
     const u_char *addr, size_t addr_len, int port,
     const u_char *host, size_t host_len,
-    u_char *errbuf, size_t *errbuf_size)
+    char **err)
 {
     u_char                *p;
     ngx_url_t              url;
@@ -813,30 +821,25 @@ ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
     ngx_http_lua_balancer_peer_data_t  *bp;
 
     if (r == NULL) {
-        p = ngx_snprintf(errbuf, *errbuf_size, "no request found");
-        *errbuf_size = p - errbuf;
+        *err = "no request found";
         return NGX_ERROR;
     }
 
     u = r->upstream;
 
     if (u == NULL) {
-        p = ngx_snprintf(errbuf, *errbuf_size, "no upstream found");
-        *errbuf_size = p - errbuf;
+        *err = "no upstream found";
         return NGX_ERROR;
     }
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_lua_module);
     if (ctx == NULL) {
-        p = ngx_snprintf(errbuf, *errbuf_size, "no ctx found");
-        *errbuf_size = p - errbuf;
+        *err = "no ctx found";
         return NGX_ERROR;
     }
 
     if ((ctx->context & NGX_HTTP_LUA_CONTEXT_BALANCER) == 0) {
-        p = ngx_snprintf(errbuf, *errbuf_size,
-                         "API disabled in the current context");
-        *errbuf_size = p - errbuf;
+        *err = "API disabled in the current context";
         return NGX_ERROR;
     }
 
@@ -844,8 +847,7 @@ ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
 
     url.url.data = ngx_palloc(r->pool, addr_len);
     if (url.url.data == NULL) {
-        p = ngx_snprintf(errbuf, *errbuf_size, "no memory");
-        *errbuf_size = p - errbuf;
+        *err = "no memory";
         return NGX_ERROR;
     }
 
@@ -873,16 +875,14 @@ ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
         bp->addr_text = &url.addrs[0].name;
 
     } else {
-        p = ngx_snprintf(errbuf, *errbuf_size, "no host allowed");
-        *errbuf_size = p - errbuf;
+        *err = "no host allowed";
         return NGX_ERROR;
     }
 
     if (host && host_len) {
         bp->host.data = ngx_palloc(r->pool, host_len);
         if (bp->host.data == NULL) {
-            p = ngx_snprintf(errbuf, *errbuf_size, "no memory");
-            *errbuf_size = p - errbuf;
+            *err = "no memory";
             return NGX_ERROR;
         }
 
