@@ -2617,7 +2617,7 @@ total number of connections to upstream servers that an nginx worker process
 can open. The connections parameter should be set to a number small enough to
 let upstream servers process new incoming connections as well.
 
-This directive was first introduced in the `v0.10.19.5` release.
+This directive was first introduced in the `v0.10.21` release.
 
 [Back to TOC](#directives)
 

@@ -674,7 +674,8 @@ ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc, void *data,
 
                         ngx_queue_remove(&item->queue);
                         ngx_queue_remove(&item->hnode);
-                        ngx_queue_insert_head(&item->lscf->balancer.free, &item->queue);
+                        ngx_queue_insert_head(&item->lscf->balancer.free,
+                                              &item->queue);
                         return;
                     }
                 }
@@ -813,7 +814,6 @@ ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
     const u_char *host, size_t host_len,
     char **err)
 {
-    u_char                *p;
     ngx_url_t              url;
     ngx_http_lua_ctx_t    *ctx;
     ngx_http_upstream_t   *u;
@@ -860,8 +860,7 @@ ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
 
     if (ngx_parse_url(r->pool, &url) != NGX_OK) {
         if (url.err) {
-            p = ngx_snprintf(errbuf, *errbuf_size, "%s", url.err);
-            *errbuf_size = p - errbuf;
+            *err = url.err;
         }
 
         return NGX_ERROR;
