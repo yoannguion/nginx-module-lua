@@ -15,6 +15,7 @@
 #include "ngx_http_lua_util.h"
 #include "ngx_http_lua_directive.h"
 
+#define NGX_BALANCER_DEF_HOST_LEN  32
 typedef struct {
     ngx_queue_t                    queue;
     ngx_queue_t                    hnode;
@@ -24,7 +25,8 @@ typedef struct {
     socklen_t                      socklen;
     ngx_sockaddr_t                 sockaddr;
     ngx_str_t                      host;
-    u_char                         hostbuf[32];
+    /* try to avoid allocating memory from the connection pool */
+    u_char                         host_data[NGX_BALANCER_DEF_HOST_LEN];
 } ngx_http_lua_balancer_ka_item_t; /*balancer keepalive item*/
 
 
@@ -661,13 +663,12 @@ ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc, void *data,
             item->socklen = pc->socklen;
             ngx_memcpy(&item->sockaddr, pc->sockaddr, pc->socklen);
             if (host->data && host->len) {
-                if (host->len <= sizeof(item->hostbuf)) {
-                    ngx_memcpy(item->hostbuf, host->data, host->len);
-                    item->host.data = item->hostbuf;
+                if (host->len <= sizeof(item->host_data)) {
+                    ngx_memcpy(item->host_data, host->data, host->len);
+                    item->host.data = item->host_data;
                     item->host.len = host->len;
 
                 } else {
-                    item->host.len = bp->addr_text->len;
                     item->host.data = ngx_pstrdup(c->pool, bp->addr_text);
                     if (item->host.data == NULL) {
                         ngx_http_lua_balancer_close(c);
@@ -678,6 +679,8 @@ ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc, void *data,
                                               &item->queue);
                         return;
                     }
+
+                    item->host.len = bp->addr_text->len;
                 }
 
             } else {
@@ -756,7 +759,7 @@ ngx_http_lua_balancer_close_handler(ngx_event_t *ev)
     if (n == -1 && ngx_socket_errno == NGX_EAGAIN) {
         ev->ready = 0;
 
-        if (ngx_handle_read_event(c->read, 0) == NGX_OK) {
+        if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
             goto close;
         }
 
@@ -1241,7 +1244,7 @@ ngx_http_lua_upstream_get_ssl_name(ngx_http_request_t *r,
 
     /*
      * ssl name here may contain port, notably if derived from $proxy_host
-     * or $http_host; we have to strip it
+     * or $http_host; we have to strip it. eg: www.example.com:443
      */
 
     p = name.data;
@@ -1311,10 +1314,10 @@ ngx_http_lua_balancer_get_cached_item(ngx_http_lua_srv_conf_t *lscf,
             continue;
         }
 
-        if (ngx_memn2cmp((u_char *) &item->sockaddr,
-                         (u_char *) sockaddr,
-                         item->socklen, socklen) == 0
-            && name->len == item->host.len
+        if (name->len == item->host.len
+            && ngx_memn2cmp((u_char *) &item->sockaddr,
+                            (u_char *) sockaddr,
+                            item->socklen, socklen) == 0
             && ngx_strncasecmp(name->data,
                                item->host.data, name->len) == 0)
         {
