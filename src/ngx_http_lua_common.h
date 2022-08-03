@@ -90,6 +90,10 @@ typedef struct {
 #   endif
 #endif
 
+#ifndef NGX_OPENSSL
+#       define NGX_OPENSSL 1
+#endif
+
 #ifndef MD5_DIGEST_LENGTH
 #   define MD5_DIGEST_LENGTH 16
 #endif
