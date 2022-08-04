@@ -21,10 +21,8 @@
 
 #include "ngx_md5.h"
 
-#if (NGX_OPENSSL)
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
-#endif
 
 
 static uintptr_t ngx_http_lua_ngx_escape_sql_str(u_char *dst, u_char *src,
@@ -32,9 +30,7 @@ static uintptr_t ngx_http_lua_ngx_escape_sql_str(u_char *dst, u_char *src,
 static int ngx_http_lua_ngx_quote_sql_str(lua_State *L);
 static int ngx_http_lua_ngx_encode_args(lua_State *L);
 static int ngx_http_lua_ngx_decode_args(lua_State *L);
-#if (NGX_OPENSSL)
 static int ngx_http_lua_ngx_hmac_sha1(lua_State *L);
-#endif
 
 
 void
@@ -49,10 +45,8 @@ ngx_http_lua_inject_string_api(lua_State *L)
     lua_pushcfunction(L, ngx_http_lua_ngx_quote_sql_str);
     lua_setfield(L, -2, "quote_sql_str");
 
-#if (NGX_OPENSSL)
     lua_pushcfunction(L, ngx_http_lua_ngx_hmac_sha1);
     lua_setfield(L, -2, "hmac_sha1");
-#endif
 }
 
 
@@ -302,7 +296,6 @@ ngx_http_lua_ngx_decode_args(lua_State *L)
 }
 
 
-#if (NGX_OPENSSL)
 static int
 ngx_http_lua_ngx_hmac_sha1(lua_State *L)
 {
@@ -328,7 +321,6 @@ ngx_http_lua_ngx_hmac_sha1(lua_State *L)
 
     return 1;
 }
-#endif
 
 
 void
